@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Reflection;
 using UnityEngine;
 
 public class GameManager : MonoBehaviour
@@ -29,10 +30,23 @@ public class GameManager : MonoBehaviour
     //用于保存的key字符串
     private readonly string key_jellyObjs = "jellyObjs";
     private readonly string key_jellyDatas = "jellyDatas";
-
+    private readonly string key_jellyCount = "jellyCount";
+    private readonly string key_moneyCount = "moneyCount";
+    //计时器
     private float _time;
-
+    //菜单面板
     public GameObject MenuPanel;
+    //Vocabulary
+    public DatabaseManager databaseManager;
+
+    [Header("BoomEffect")]
+    public float boomRadius = 1;
+    public float boomStrength = 2;
+    public float boomDuration = 2;
+
+    [Header("Test")]
+    public int touchAddMin;
+    public int touchAddMax;
 
     private void Awake()
     {
@@ -106,11 +120,9 @@ public class GameManager : MonoBehaviour
         }
 
         moneyCount -= jellys[index].jellyPrice;
-        GameObject newjelly = Instantiate(jellys[index].jellyPrefab);
-        newjelly.name = jellys[index].jellyName;
+        GenerateJelly(index, Vector2.zero);
         AudioManager.Instance.PlaySound_Buy();
 
-        jellyObjs.Add(newjelly);
         Save();
     }
         
@@ -135,6 +147,7 @@ public class GameManager : MonoBehaviour
         AudioManager.Instance.PlaySound_Clear();
         Save();
     }
+
     /// <summary>
     /// 卖掉Jelly转换成JellyCount
     /// </summary>
@@ -156,6 +169,7 @@ public class GameManager : MonoBehaviour
         AudioManager.Instance.PlaySound_Clear();
         Save();
     }
+
     /// <summary>
     /// 获取商品信息，若不达当前可解锁等级则返回“锁”
     /// </summary>
@@ -172,6 +186,39 @@ public class GameManager : MonoBehaviour
             Goods goods = new Goods(lockSprite, jellys[index].jellyName, -1);
             return goods;
         }
+    }
+
+    /// <summary>
+    /// 生成一个Jelly
+    /// </summary>
+    /// <param name="index"> Jelly 的编号</param>
+    public GameObject GenerateJelly(int index,Vector2 pos, string name = null)
+    {
+        GameObject newjelly = Instantiate(jellys[index].jellyPrefab, pos, Quaternion.identity);
+        newjelly.name = name != null ? name : jellys[index].jellyName;
+        jellyObjs.Add(newjelly);
+
+        return newjelly;
+    }
+
+    /// <summary>
+    /// 销毁一个Jelly
+    /// </summary>
+    /// <param name="jelly"></param>
+    public void DestroyJelly(Jelly jelly)
+    {
+        jellyCount += jelly.data.JellyCount;
+        for (int i = 0; i < jellyObjs.Count; i++)
+        {
+            if (jellyObjs[i] == jelly.gameObject)
+            {
+                jellyObjs.RemoveAt(i);
+                jellyDatas.RemoveAt(i);
+                Destroy(jelly.gameObject);
+                break;
+            }
+        }
+        Save();
     }
 
     private void OnApplicationQuit()
@@ -195,10 +242,22 @@ public class GameManager : MonoBehaviour
 
     private void Load()
     {
-        jellyObjs = ES3.Load<List<GameObject>>(key_jellyObjs);
-        jellyCount = ES3.Load<int>("jellyCount");
-        moneyCount = ES3.Load<int>("moneyCount");
-        jellyDatas = ES3.Load<List<JellyData>>(key_jellyDatas);
+        if (ES3.KeyExists(key_jellyObjs))
+        {
+            jellyObjs = ES3.Load<List<GameObject>>(key_jellyObjs);
+        }
+        if (ES3.KeyExists(key_jellyDatas))
+        {
+            jellyDatas = ES3.Load<List<JellyData>>(key_jellyDatas);
+        }
+        if (ES3.KeyExists(key_jellyCount))
+        {
+            jellyCount = ES3.Load<int>("jellyCount");
+        }
+        if (ES3.KeyExists(key_moneyCount))
+        {
+            moneyCount = ES3.Load<int>("moneyCount");
+        }
 
         if(jellyObjs.Count != jellyDatas.Count)
         {

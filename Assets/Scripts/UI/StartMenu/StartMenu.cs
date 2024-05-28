@@ -13,12 +13,10 @@ public class StartMenu : MonoBehaviour
     public GameObject loadingScreen;
 
     private bool animationPlayed = false; // 用于标记动画是否已经播放过
-    public float minAnimationDuration = 2.0f; // 最小播放时间
+    public float minAnimationDuration = 1.0f; // 最小播放时间
     private Animator anim;
     void Start()
     {
-        // Application.targetFrameRate = 60;
-
         PlayBtn.onClick.AddListener(OnPlayButtonClicked);
         SettingBtn.onClick.AddListener(OnSettingButtonClicked);
         ResetBtn.onClick.AddListener(OnResetButtonClicked);
@@ -54,6 +52,7 @@ public class StartMenu : MonoBehaviour
     public void OnResetButtonClicked()
     {
         ES3.DeleteFile();
+        SettingPanel.SetActive(false);
         Debug.Log("ClickResetButton");
     }
 

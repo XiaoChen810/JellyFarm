@@ -41,6 +41,7 @@ public class UIManager : MonoBehaviour
     public Text priceText;
     public Text jellyCountText;
     public Text oldText;
+    public Button panelBtn;
 
     private void Awake()
     {

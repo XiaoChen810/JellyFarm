@@ -1,7 +1,7 @@
+using DG.Tweening;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Events;
 
 [RequireComponent(typeof(BoxCollider2D))]
 public class Jelly : MonoBehaviour
@@ -20,6 +20,7 @@ public class Jelly : MonoBehaviour
     private BoxCollider2D moveBoundary;
 
     private float sizeUnit = 0.001f;
+    private float maxSize = 5f;
 
     private void Start()
     {
@@ -44,13 +45,14 @@ public class Jelly : MonoBehaviour
         coll.isTrigger = true;
         rb = GetComponent<Rigidbody2D>();
         anim = GetComponentInChildren<Animator>();
-        StartCoroutine(RandomMoveCoroutine());
-        anim.SetBool("isWalk", true);
+
+        StartMove();
 
         if (GameManager.Instance == null) return;
 
         data.Cost = GameManager.Instance.jellys[data.Id].jellyPrice;
-        data.Name = GameManager.Instance.jellys[data.Id].jellyName;
+        //data.Name = GameManager.Instance.jellys[data.Id].jellyName;
+        data.Name = gameObject.name;
         if (data.Price == 0) data.Price = CalculatePrice();
     }
 
@@ -81,11 +83,11 @@ public class Jelly : MonoBehaviour
     private float CalculateSize()
     {
         float size = data.Size * sizeUnit + 0.5f;
-        if(size < 3)
+        if(size < maxSize)
         {
             return size;
         }
-        return 3;
+        return maxSize;
     }
     private int CalculateLevel()
     {
@@ -118,10 +120,13 @@ public class Jelly : MonoBehaviour
         }
         // 只是触摸
         anim.SetTrigger("doTouch");
-        int add = Random.Range(3, 10);
+        int add = Random.Range(
+            GameManager.Instance.touchAddMin,
+            GameManager.Instance.touchAddMax);
         GameManager.Instance.jellyCount += add;
         data.Size += add / 2;
         AudioManager.Instance.PlaySound_Touch();
+        WhenDoTouch();
     }
 
     /// <summary>
@@ -133,20 +138,70 @@ public class Jelly : MonoBehaviour
         UIManager.Instance.JellyPanelOpen(sr.sprite, data.Name, data.Price, data.JellyCount, data.Age);
     }
 
+    /// <summary>
+    /// 当实现触摸时
+    /// </summary>
+    public void WhenDoTouch()
+    {
+        if(moveCoroutine != null) StopCoroutine(moveCoroutine);
+        moveCoroutine = StartCoroutine(StopMoveDuration(2f));
+        float random = Random.Range(40, 100);
+        float boom = (CalculateSize() / maxSize) * 100f;
+        if (random < boom)
+        {
+            StopMove();
+            BoomEffect();
+            GameManager.Instance.DestroyJelly(this);
+        }
+    }
+
+    private void BoomEffect()
+    {
+        int numCreate = Random.Range(2, 4);
+        for (int i = 0; i < numCreate; i++)
+        {
+            Boom();
+        }
+
+        void Boom()
+        {
+            GameObject newJelly = GameManager.Instance.GenerateJelly(data.Id, transform.position, "boom");
+            Vector3 endPos = transform.position
+                + new Vector3(
+                    Random.Range(-GameManager.Instance.boomRadius, GameManager.Instance.boomRadius),
+                    Random.Range(-GameManager.Instance.boomRadius, GameManager.Instance.boomRadius));
+
+            float jumpPower = GameManager.Instance.boomStrength;
+            float duration = GameManager.Instance.boomDuration;
+            newJelly.transform.DOJump(endPos, jumpPower, 1, duration);
+        }
+    }
+
     #endregion
 
     #region Move
 
+    public void StartMove()
+    {
+        canMove = true;
+        StartCoroutine(RandomMoveCoroutine());
+        anim.SetBool("isWalk", true);
+    }
+
+    public void StopMove()
+    {
+        canMove = false;
+        rb.velocity = Vector2.zero;
+        anim.SetBool("isWalk", false);
+    }
+
     IEnumerator RandomMoveCoroutine()
     {
-        while (true)
+        while (canMove && moveBoundary != null)
         {
-            if (canMove && moveBoundary != null)
-            {
-                Vector2 randomPoint = GetRandomPointWithinBoundary();
-                Vector3 targetPosition = new Vector3(randomPoint.x, randomPoint.y, 0f);
-                yield return StartCoroutine(MoveToTarget(targetPosition));
-            }
+            Vector2 randomPoint = GetRandomPointWithinBoundary();
+            Vector3 targetPosition = new Vector3(randomPoint.x, randomPoint.y, 0f);
+            yield return StartCoroutine(MoveToTarget(targetPosition));
 
             yield return new WaitForSeconds(waitTime);
         }
@@ -167,7 +222,7 @@ public class Jelly : MonoBehaviour
 
     IEnumerator MoveToTarget(Vector3 targetPosition)
     {
-        while (Vector3.Distance(transform.position, targetPosition) > 0.1f)
+        while (canMove && Vector3.Distance(transform.position, targetPosition) > 0.1f)
         {
             anim.SetBool("isWalk", true);
             Vector2 moveDirection = (targetPosition - transform.position).normalized;
@@ -178,7 +233,6 @@ public class Jelly : MonoBehaviour
 
         rb.velocity = Vector2.zero;
         anim.SetBool("isWalk", false);
-
     }
 
     private Vector3 previousPosition;
@@ -201,6 +255,14 @@ public class Jelly : MonoBehaviour
         previousPosition = currentPosition;
     }
 
+    Coroutine moveCoroutine = null;
+    private IEnumerator StopMoveDuration(float duration)
+    {
+        StopMove();
+        yield return new WaitForSeconds(duration);
+        StartMove();
+    }
+
     #endregion
 }
 
@@ -209,7 +271,7 @@ public class Jelly : MonoBehaviour
 [System.Serializable]
 public class JellyData
 {
-    //商品Id，不是唯一
+    //商品Id，唯一
     public int Id;
     //名字，可以改
     public string Name;
